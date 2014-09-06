@@ -1,0 +1,187 @@
+
+INCLUDE Irvine32.inc
+
+;============ macros called at the end of the program for output ===
+FinishPlay macro line
+call crlf
+mov edx, offset line
+call writestring
+call crlf
+endm
+;================
+
+;=========== macros called at the beginning of the program for output ===
+Start macro line1, line2, line3
+mov edx, offset line1
+call writestring
+call crlf
+mov edx, offset line2
+call writestring
+call crlf
+mov edx, offset line3
+call writestring
+call crlf
+endm
+;=================
+
+;============ macros called if 1 is pressed without entering any note ===
+ErrorMessage macro line
+mov edx, offset line
+call writestring
+call crlf
+endm
+;==================
+
+.data
+
+strprompt1 byte "Press 1: To replay the note you entered",0
+strprompt2 byte "Press Esc: To exit",0
+strprompt3 byte "           You are now free to play Piano",0
+strprompt4 byte "      ^_^ Hope you've enjoyed your time ^_^",0
+strprompt5 byte "You hanven't entered any note yet.",0
+
+strkeys byte "qwertyuasdfghjzxcvbnm",0 ;==== string carry char of the keys the user may enter=====
+
+lastNote DWORD 100 dup(0)
+
+frequencies DWORD 523, 587, 659, 698, 783, 880, 987, ;=== string carry frequncies for every key the user may enter =======
+1046, 1174, 1318, 1396, 1567, 1760, 1975,
+2093, 2349, 2637, 2793, 3135, 3520, 3951
+
+num dword 0 ;===== save the size of the entered note
+newNote byte 0 ;====== an indicator for the beginning of a new note
+
+.code
+
+;========== proto of all functions used ====================
+Beep proto Frequency : Dword, Duration : Dword
+PlayNote proto
+ProgramRun proto
+
+
+;================ main block ===================
+main PROC
+
+Start strprompt1, strprompt2, strprompt3 ;-----called for output the start prompts
+
+INVOKE ProgramRun ;----- called for running the program
+
+FinishPlay strprompt4 ;----- called for output the end prompts
+
+	exit
+main ENDP
+;===============================================
+
+;====================== function which accepts the key and output its frequency ===================
+
+ProgramRun PROC
+PUSHAD
+mov esi, offset lastNote
+
+
+.while( al != 27 )
+
+call readchar
+
+.IF al != 27
+
+;--------- when the last note is requested -----------------
+.IF al == 49
+
+.IF num == 0
+ErrorMessage strprompt5
+jmp finish
+.endif
+
+INVOKE PlayNote
+mov al, 1
+mov newNote, al
+jmp finish
+.endif
+;-------------------------------
+
+;---- if upper letter change it to lower ----
+.IF al < 97
+add al,32
+.endif
+;---------------------------------------
+
+;------ search for the key you enter -----------
+mov edi, offset strkeys
+mov ecx, LENGTHOF strkeys
+cld
+repne scasb
+jne finish ;---- if the key isn't valid skip and continue your program
+;-------------------
+
+;-------- if a new note will be entered append it from the beginning of lastnote string -----------
+.IF newNote == 1
+PUSH eax
+mov esi, offset lastNote
+mov eax, 0
+mov num, eax
+mov al,0
+mov newNote, al
+POP eax
+call crlf
+.endif
+;------------------------
+
+call writechar
+
+;------- search for the frequency of the entered key ------------
+mov eax, LENGTHOF strkeys
+sub eax, ecx
+dec eax
+mov ebx, 4
+mul ebx
+mov edi, offset frequencies
+mov eax, [edi+eax]
+mov [esi], eax ;----- add the frequency to the array lastnote
+;---------------------
+
+INVOKE Beep, eax, 200
+
+add esi, ebx
+mov eax, num
+inc eax
+mov num, eax
+
+finish:
+mov eax, 0
+.endif
+
+.endw
+
+POPAD
+RET
+ProgramRun ENDP
+;=======================================================================
+
+;================== reply the last note the user entered ===============
+PlayNote PROC
+
+PUSHAD
+
+mov ecx, num
+mov esi, offset lastNote
+mov ebx, 4
+
+;------loop on the string lastnote to play it
+L1: 
+
+mov eax , [esi]
+PUSHAD
+INVOKE Beep, eax, 200
+POPAD
+add esi, ebx
+
+loop L1 
+;------end loop
+
+POPAD
+RET
+PlayNote ENDP
+;=========================================================================
+
+END main
